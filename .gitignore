@@ -1,0 +1,19 @@
+# Data and regenerable artifacts — never commit (spec §2.2)
+prototypes/data/
+prototypes/artifacts/
+*.npy
+*.pkl
+
+# Secrets — never commit
+.env
+.env.*
+
+# Env + caches
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Keep empty dirs in tree
+!prototypes/data/.gitkeep
+!prototypes/artifacts/.gitkeep
