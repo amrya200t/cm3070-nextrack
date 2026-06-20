@@ -43,11 +43,27 @@ def train() -> None:
     print("Done. Artifacts written to prototypes/artifacts/")
 
 
+def _launch_notebook(name: str) -> None:
+    """Launch JupyterLab on a notebook; exit cleanly on Ctrl+C.
+
+    JupyterLab is a long-running server (it serves until stopped), so Ctrl+C is
+    the normal way to quit. Without this, the interrupt surfaces as a noisy
+    KeyboardInterrupt traceback; we swallow it and print a tidy message instead.
+    """
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "jupyterlab", str(_NOTEBOOKS / name)],
+            check=False,
+        )
+    except KeyboardInterrupt:
+        print("\nJupyterLab server stopped.")
+
+
 def demo() -> None:
     """Open the video demo notebook."""
-    subprocess.run([sys.executable, "-m", "jupyterlab", str(_NOTEBOOKS / "02-demo.ipynb")], check=False)
+    _launch_notebook("02-demo.ipynb")
 
 
 def explore() -> None:
     """Open the data-exploration notebook."""
-    subprocess.run([sys.executable, "-m", "jupyterlab", str(_NOTEBOOKS / "01-data-explore.ipynb")], check=False)
+    _launch_notebook("01-data-explore.ipynb")
