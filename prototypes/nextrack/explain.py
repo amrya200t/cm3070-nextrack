@@ -1,9 +1,9 @@
 """Explanation: Jaccard tag-overlap between session and candidate tracks.
 
 Uses the top-20 tags per track; reports the top-3 shared tags in a plain-English
-`why` string. If a track has no tags (the LFM-2b tag join covers ~half the
-catalogue), returns an empty explanation honestly rather than fabricating one.
-Spec §1.4.
+`why` string. If a track has no tags (the LFM-2b tag join covers ~69% of the
+trained catalogue), returns an empty explanation honestly rather than
+fabricating one. Spec §1.4.
 """
 
 from __future__ import annotations

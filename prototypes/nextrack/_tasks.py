@@ -1,7 +1,7 @@
 """Console entry points wired to pyproject [project.scripts].
 
-`train` runs the training script; `demo`/`explore` open the notebooks via
-jupyter lab. Scaffold-time stubs — train() raises until block B2 lands.
+`train` runs the full training pipeline (load -> filter -> CSR -> fit -> save);
+`demo`/`explore` open the notebooks via JupyterLab.
 """
 
 from __future__ import annotations
