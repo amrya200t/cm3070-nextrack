@@ -113,16 +113,27 @@ def cosine_nearest(
     return [(int(i), float(scores[i])) for i in top]
 
 
-def recommend(recent_track_ids: list[str], k: int = 10) -> list[dict]:
+def recommend(
+    recent_track_ids: list[str],
+    k: int = 10,
+    rerank: bool = True,
+    rerank_weights: dict[str, float] | None = None,
+) -> list[dict]:
     """Stateless next-track recommendation.
 
     Args:
         recent_track_ids: track IDs from the catalogue (no user identifier).
         k: number of recommendations to return.
+        rerank: apply the hybrid metadata re-ranker (tag boost + artist
+            diversity penalty) over a widened CF candidate pool. False gives
+            the pure collaborative-filtering ranking (the Phase-0 behaviour).
+        rerank_weights: optional weight overrides, see rerank.DEFAULT_WEIGHTS.
 
     Returns:
         List of k dicts: {track_id, artist, title, score, why, shared_tags}.
     """
+    from nextrack.rerank import CANDIDATE_POOL, rerank as rerank_fn
+
     factors, unit_factors, maps = _load_artifacts()
     track_id_to_index = maps["track_id_to_index"]
     index_to_track_id = maps["index_to_track_id"]
@@ -140,11 +151,23 @@ def recommend(recent_track_ids: list[str], k: int = 10) -> list[dict]:
         for tid in recent_track_ids
         if tid in track_id_to_index
     }
-    ranked = cosine_nearest(session_vector, unit_factors, k, exclude)
+    # Widen the pool when re-ranking so metadata can promote candidates that
+    # pure cosine leaves just outside the top-k.
+    pool = max(CANDIDATE_POOL, k) if rerank else k
+    ranked = cosine_nearest(session_vector, unit_factors, pool, exclude)
+
+    if rerank:
+        candidates = [(index_to_track_id[idx], score) for idx, score in ranked]
+        artist_of = {tid: track_names.get(tid, ("", ""))[0] for tid, _ in candidates}
+        reranked = rerank_fn(
+            candidates, recent_track_ids, tags, artist_of, k, rerank_weights
+        )
+        id_scores = reranked
+    else:
+        id_scores = [(index_to_track_id[idx], score) for idx, score in ranked[:k]]
 
     results: list[dict] = []
-    for idx, score in ranked:
-        tid = index_to_track_id[idx]
+    for tid, score in id_scores:
         artist, title = track_names.get(tid, ("", ""))
         why, shared = tag_overlap_explain(recent_track_ids, tid, tags)
         results.append(
@@ -152,7 +175,7 @@ def recommend(recent_track_ids: list[str], k: int = 10) -> list[dict]:
                 "track_id": tid,
                 "artist": artist,
                 "title": title,
-                "score": score,
+                "score": float(score),
                 "why": why,
                 "shared_tags": shared,
             }

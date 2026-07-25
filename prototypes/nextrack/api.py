@@ -42,6 +42,16 @@ app = FastAPI(
 )
 
 
+class RecommendParams(BaseModel):
+    rerank: bool = Field(
+        True,
+        description=(
+            "Apply the hybrid metadata re-ranker (tag-overlap boost + artist "
+            "diversity penalty). False returns the pure CF ranking."
+        ),
+    )
+
+
 class RecommendRequest(BaseModel):
     recent_track_ids: list[str] = Field(
         ...,
@@ -50,6 +60,7 @@ class RecommendRequest(BaseModel):
         examples=[["41454059", "7741243", "26878430"]],
     )
     k: int = Field(10, ge=1, le=50, description="Number of recommendations.")
+    params: RecommendParams = Field(default_factory=RecommendParams)
 
 
 class Recommendation(BaseModel):
@@ -71,7 +82,7 @@ class TrackHit(BaseModel):
 def post_recommend(req: RecommendRequest) -> list[dict]:
     """Ranked next-track recommendations for the supplied session."""
     try:
-        return recommend(req.recent_track_ids, k=req.k)
+        return recommend(req.recent_track_ids, k=req.k, rerank=req.params.rerank)
     except ValueError:
         # None of the seeds exist in the trained catalogue. Cold-start is out
         # of scope by design (prelim 3.6 predicted failure modes), so this is

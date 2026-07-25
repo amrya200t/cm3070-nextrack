@@ -135,7 +135,19 @@ def evaluate_popularity(train_plays, eval_cases) -> list[dict]:
     return scores
 
 
-def evaluate_als(train_plays, eval_cases) -> list[dict]:
+def build_candidate_pools(train_plays, eval_cases) -> list[tuple | None]:
+    """Train ALS ONCE and compute each case's top-50 CF candidates once.
+
+    Both evaluation arms (pure CF and CF + re-ranker) score from the same
+    pools: pure CF is simply the first K candidates, so nothing is trained or
+    ranked twice. A `None` entry means the session or target fell out of the
+    training catalogue — scored as a miss in every arm rather than dropped
+    (dropping would bias the comparison toward the easy, well-covered users).
+
+    Returns [(session, target, [(track_id, cosine), ... top-50]) | None, ...].
+    """
+    from nextrack.rerank import CANDIDATE_POOL
+
     matrix, tid_to_idx, idx_to_tid = build_csr(train_plays)
     model = train_als(matrix)
     factors = model.item_factors
@@ -143,25 +155,57 @@ def evaluate_als(train_plays, eval_cases) -> list[dict]:
     norms[norms == 0] = 1e-9
     unit = factors / norms[:, None]
 
-    scores = []
+    pools: list[tuple | None] = []
     for _, row in eval_cases.iterrows():
         idxs = [tid_to_idx[t] for t in row["session"] if t in tid_to_idx]
-        target_idx = tid_to_idx.get(row["target"])
-        if not idxs or target_idx is None:
-            # Session or target fell out of the training catalogue: count as a
-            # miss rather than silently dropping the case (dropping would bias
-            # the comparison toward ALS on the easy, well-covered users).
-            scores.append(score_rank(None))
+        if not idxs or row["target"] not in tid_to_idx:
+            pools.append(None)
             continue
         sv = factors[idxs].mean(axis=0)
         sv = sv / (np.linalg.norm(sv) or 1e-9)
         sims = unit @ sv
         sims[idxs] = -np.inf  # never recommend a session track back
-        top = np.argpartition(-sims, K)[:K]
+        top = np.argpartition(-sims, CANDIDATE_POOL)[:CANDIDATE_POOL]
         top = top[np.argsort(-sims[top])]
-        recs = [idx_to_tid[i] for i in top]
-        scores.append(score_rank(rank_of_target(row["target"], recs)))
-    return scores
+        pools.append(
+            (row["session"], row["target"], [(idx_to_tid[i], float(sims[i])) for i in top])
+        )
+    return pools
+
+
+def score_pools(
+    pools: list[tuple | None],
+    rerank: bool = False,
+    tags: dict | None = None,
+    artist_of: dict | None = None,
+) -> tuple[list[dict], float]:
+    """Score one arm over precomputed candidate pools.
+
+    Returns (per-case metric dicts, mean unique artists in the top-K) — the
+    diversity number is the second half of the Phase B4 acceptance test.
+    """
+    from nextrack.rerank import rerank as rerank_fn
+
+    scores = []
+    unique_artist_counts = []
+    for case in pools:
+        if case is None:
+            scores.append(score_rank(None))
+            continue
+        session, target, candidates = case
+        if rerank:
+            recs = [
+                tid for tid, _ in rerank_fn(
+                    candidates, session, tags or {}, artist_of or {}, K
+                )
+            ]
+        else:
+            recs = [tid for tid, _ in candidates[:K]]
+        if artist_of is not None:
+            unique_artist_counts.append(len({artist_of.get(t, t) for t in recs}))
+        scores.append(score_rank(rank_of_target(target, recs)))
+    diversity = float(np.mean(unique_artist_counts)) if unique_artist_counts else 0.0
+    return scores, diversity
 
 
 def _mean(scores: list[dict]) -> dict[str, float]:
@@ -180,20 +224,41 @@ def main() -> None:
     train_plays, eval_cases = leave_last_out(events)
     print(f"  train pairs: {len(train_plays):,}   eval cases: {len(eval_cases):,}")
 
+    print("Loading track names + tags for the re-ranker and diversity metric ...")
+    from nextrack.data import load_tags, load_track_names
+
+    names = load_track_names()
+    artist_of = {tid: a for tid, (a, _t) in names.items()}
+    tags = load_tags(names)
+
     print("Evaluating popularity baseline ...")
     pop = _mean(evaluate_popularity(train_plays, eval_cases))
     print(f"  {pop}")
 
-    print("Training + evaluating ALS session-vector model ...")
-    als = _mean(evaluate_als(train_plays, eval_cases))
-    print(f"  {als}")
+    print("Training ALS + building candidate pools (once, shared by both arms) ...")
+    pools = build_candidate_pools(train_plays, eval_cases)
 
+    print("Scoring ALS session-vector model (pure CF) ...")
+    als_scores, als_div = score_pools(pools, artist_of=artist_of)
+    als = _mean(als_scores)
+    print(f"  {als}  unique_artists@10={als_div:.2f}")
+
+    print("Scoring ALS + hybrid re-ranker ...")
+    rr_scores, rr_div = score_pools(pools, rerank=True, tags=tags, artist_of=artist_of)
+    rr = _mean(rr_scores)
+    print(f"  {rr}  unique_artists@10={rr_div:.2f}")
+
+    ndcg_delta_pct = (
+        100.0 * (rr["ndcg"] - als["ndcg"]) / als["ndcg"] if als["ndcg"] else 0.0
+    )
     results = {
         "k": K,
         "session_len": SESSION_LEN,
         "n_eval_cases": int(len(eval_cases)),
         "popularity": pop,
-        "als_session_vector": als,
+        "als_session_vector": {**als, "unique_artists_at_10": round(als_div, 2)},
+        "als_plus_rerank": {**rr, "unique_artists_at_10": round(rr_div, 2)},
+        "rerank_ndcg_delta_pct": round(ndcg_delta_pct, 2),
         "runtime_seconds": round(time.time() - t0, 1),
     }
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
