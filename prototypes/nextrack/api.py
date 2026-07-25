@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field
 
 from nextrack import recommend
 from nextrack.infer import _load_artifacts
+from nextrack.search import rank_tracks
+from nextrack.spotify import get_track_id as spotify_track_id
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -116,18 +118,17 @@ def post_recommend(req: RecommendRequest) -> list[dict]:
 
 @app.get("/search", response_model=list[TrackHit])
 def search(
-    q: str = Query(..., min_length=2, description="Case-insensitive substring of artist or title."),
+    q: str = Query(..., min_length=2, description="Artist and/or title; multi-word, typo-tolerant."),
     limit: int = Query(20, ge=1, le=100),
 ) -> list[dict]:
-    """Name -> track_id lookup so clients can build sessions from real titles."""
-    needle = q.lower()
-    hits: list[dict] = []
-    for tid, (artist, title) in app.state.maps["track_names"].items():
-        if needle in artist.lower() or needle in title.lower():
-            hits.append({"track_id": tid, "artist": artist, "title": title})
-            if len(hits) >= limit:
-                break
-    return hits
+    """Ranked name -> track_id lookup so clients can build sessions from real titles."""
+    return rank_tracks(q, app.state.maps["track_names"], limit)
+
+
+@app.get("/spotify")
+def spotify(artist: str = Query(...), title: str = Query(...)) -> dict:
+    """Resolve a track to a Spotify ID for the in-place player; null if unknown."""
+    return {"spotify_id": spotify_track_id(artist, title)}
 
 
 @app.get("/health")
@@ -151,11 +152,30 @@ if WEB_DIR.is_dir():
         return RedirectResponse(url="/app/")
 
 
-def main() -> None:
-    import os
+def _load_env_local() -> None:
+    """Load KEY=VALUE lines from code/.env.local into os.environ if present.
 
+    A [project.scripts] entry point runs inside the process, so `uv run api`
+    can't pass --env-file to itself; we load the file here before uvicorn starts.
+    Only fills vars that are not already set (real env wins). No dependency.
+    """
+    if os.getenv("SPOTIFY_CLIENT_ID"):
+        return
+    env_path = Path(__file__).resolve().parent.parent.parent / ".env.local"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+def main() -> None:
     import uvicorn
 
+    _load_env_local()
     # Defaults favour the reproducible local demo; env vars cover Docker later.
     uvicorn.run(
         "nextrack.api:app",
@@ -171,10 +191,9 @@ def dev() -> None:
     Dev-only: each restart re-runs the lifespan, so the ~2s artifact load
     happens on every save — fine locally, wrong for serving.
     """
-    from pathlib import Path
-
     import uvicorn
 
+    _load_env_local()
     uvicorn.run(
         "nextrack.api:app",
         host="127.0.0.1",

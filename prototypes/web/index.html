@@ -1,77 +1,96 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NextTrack — stateless music recommendations</title>
-  <script>
-    // Set the theme BEFORE first paint (no dark-flash for light-OS users):
-    // saved choice wins, then OS preference, then dark.
-    (function () {
-      var saved = null;
-      try { saved = localStorage.getItem("nexttrack-theme"); } catch (e) {}
-      var theme = saved ||
-        (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-      document.documentElement.setAttribute("data-theme", theme);
-    })();
-  </script>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="wrap">
-    <div class="topbar">
-      <div class="mock-banner">NextTrack · demo · mock data</div>
-      <button class="theme-btn" id="theme" type="button">
-        <span class="dot"></span><span id="theme-label">Dark</span>
-      </button>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NextTrack — stateless music recommendations</title>
+    <script>
+      // Set the theme BEFORE first paint (no dark-flash for light-OS users):
+      // saved choice wins, then OS preference, then dark.
+      (function () {
+        var saved = null;
+        try {
+          saved = localStorage.getItem("nexttrack-theme");
+        } catch (e) {}
+        var theme =
+          saved ||
+          (matchMedia("(prefers-color-scheme: light)").matches
+            ? "light"
+            : "dark");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="mock-banner">NextTrack · demo · mock data</div>
+        <button class="theme-btn" id="theme" type="button">
+          <span class="dot"></span><span id="theme-label">Dark</span>
+        </button>
+      </div>
+
+      <header>
+        <div class="brand">Next<span class="mark">Track</span></div>
+        <p class="tagline">
+          A <em>stateless</em> music recommender. Give it your last few tracks —
+          no account, no history — get what to play next, with the reasoning.
+        </p>
+        <div class="meta-row">
+          <span><b>35,861</b> TRACKS</span>
+          <span><b>68.8%</b> TAGGED</span>
+          <span>ALS · <b>0.049</b> R@10</span>
+          <span><b>LFM-2B</b></span>
+        </div>
+      </header>
+
+      <div class="panel">
+        <h2>Build a session</h2>
+        <div class="search">
+          <input
+            id="q"
+            type="text"
+            placeholder="Search — Radiohead, Daft Punk, Dua Lipa…"
+            autocomplete="off"
+          />
+        </div>
+        <ul class="hits" id="hits"></ul>
+        <div class="session" id="session"></div>
+        <div class="controls">
+          <button class="btn" id="go" type="button">Recommend</button>
+          <label class="toggle">
+            <input type="checkbox" id="rerank" checked />
+            <span class="track"></span><span>Diversity</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="results" id="results" hidden>
+        <div class="results-head">
+          <h2>Play next</h2>
+          <span class="note" id="resnote"></span>
+        </div>
+        <div id="recs"></div>
+      </div>
+
+      <footer>
+        Research demo for CM3070. Recommendations and track names come from the
+        <a href="#">LFM-2b dataset</a> (Schedl et al., 2022); the dataset itself
+        is not redistributed. Spotify links open playback only — no Spotify data
+        enters the model.
+        <br />
+        <a
+          class="feedback"
+          href="https://docs.google.com/forms/d/e/1FAIpQLSc7anCOe9fs2xqyMy_ptAaH6BS5nAibFtdI0mzpJhj0l__20Q/viewform?usp=dialog"
+          target="_blank"
+          rel="noopener"
+          >Tried it? Leave feedback →</a
+        >
+      </footer>
     </div>
 
-    <header>
-      <div class="brand">Next<span class="mark">Track</span></div>
-      <p class="tagline">A <em>stateless</em> music recommender. Give it your last few
-        tracks — no account, no history — get what to play next, with the reasoning.</p>
-      <div class="meta-row">
-        <span><b>35,861</b> TRACKS</span>
-        <span><b>68.8%</b> TAGGED</span>
-        <span>ALS · <b>0.049</b> R@10</span>
-        <span><b>LFM-2B</b></span>
-      </div>
-    </header>
-
-    <div class="panel">
-      <h2>Build a session</h2>
-      <div class="search">
-        <input id="q" type="text" placeholder="Search — Radiohead, Daft Punk, Dua Lipa…" autocomplete="off" />
-      </div>
-      <ul class="hits" id="hits"></ul>
-      <div class="session" id="session"></div>
-      <div class="controls">
-        <button class="btn" id="go" type="button">Recommend</button>
-        <label class="toggle">
-          <input type="checkbox" id="rerank" checked />
-          <span class="track"></span><span>Diversity</span>
-        </label>
-      </div>
-    </div>
-
-    <div class="results" id="results" hidden>
-      <div class="results-head">
-        <h2>Play next</h2>
-        <span class="note" id="resnote"></span>
-      </div>
-      <div id="recs"></div>
-    </div>
-
-    <footer>
-      Research demo for CM3070. Recommendations and track names come from the
-      <a href="#">LFM-2b dataset</a> (Schedl et al., 2022); the dataset itself is not
-      redistributed. Spotify links open playback only — no Spotify data enters the model.
-      <br />
-      <a class="feedback" href="#">Tried it? Leave feedback →</a>
-    </footer>
-  </div>
-
-  <script src="engine.js"></script>
-  <script src="app.js"></script>
-</body>
+    <script src="engine.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>

@@ -163,10 +163,18 @@ header { margin-bottom: 2.2rem; }
   transition: color .12s, border-color .12s, background .12s;
 }
 .play:hover, .spotify:hover { color: var(--accent2-ink); background: var(--accent2); border-color: var(--accent2); }
-.embed { margin-top: .6rem; width: 100%; min-width: 260px; }
-/* when the embed is open, let it span the card's full width */
-.rec:has(.embed:not([hidden])) { grid-template-columns: 3rem 1fr; }
-.rec:has(.embed:not([hidden])) .aside { grid-column: 2; align-items: stretch; text-align: left; }
+/* The embed is its own full-width row spanning all grid columns, so opening it
+   never moves the score/meter/button in .aside (they stay pinned right). */
+.embed { grid-column: 1 / -1; margin-top: .8rem; width: 100%; }
+.embed-loading {
+  font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ink-faint); text-align: center; padding: 1.4rem; border: 1px dashed var(--line-soft);
+  border-radius: 10px;
+}
+.embed-loading::after { content: ""; animation: dots 1.2s steps(4, end) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+/* loading state on the Play button */
+.play:disabled { opacity: .6; cursor: wait; }
 
 /* ================================================================ FOOTER */
 footer { margin-top: 3rem; padding-top: 1.4rem; border-top: 2px solid var(--line); font-size: .8rem; color: var(--ink-faint); line-height: 1.7; }

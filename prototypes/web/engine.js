@@ -39,16 +39,16 @@
   //   off -> pure CF, 3 unique artists (the monoculture problem)
   //   on  -> hybrid re-ranker, 5 unique artists (NDCG cost -4.9%)
   const PF_CF = [
-    { title: "On the Run", artist: "Pink Floyd", score: 0.927, why: "Because you listened to progressive rock, psychedelic rock and space rock", shared_tags: ["progressive rock","psychedelic rock","space rock"], spotify_id: "0Rm2tW6mCa9O0kO1e2m9m4" },
-    { title: "The Great Gig in the Sky", artist: "Pink Floyd", score: 0.902, why: "Because you listened to rock, psychedelic and classic rock", shared_tags: ["rock","psychedelic","classic rock"], spotify_id: "2TjdnqlpwOjhijHCwHCP2d" },
-    { title: "Speak to Me", artist: "Pink Floyd", score: 0.901, why: "Because you listened to progressive rock and psychedelic rock", shared_tags: ["progressive rock","psychedelic rock"], spotify_id: "5XWaZC5namyfytEfCbTMTL" },
+    { title: "On the Run", artist: "Pink Floyd", score: 0.927, why: "Because you listened to progressive rock, psychedelic rock and space rock", shared_tags: ["progressive rock","psychedelic rock","space rock"] },
+    { title: "The Great Gig in the Sky", artist: "Pink Floyd", score: 0.902, why: "Because you listened to rock, psychedelic and classic rock", shared_tags: ["rock","psychedelic","classic rock"] },
+    { title: "Speak to Me", artist: "Pink Floyd", score: 0.901, why: "Because you listened to progressive rock and psychedelic rock", shared_tags: ["progressive rock","psychedelic rock"] },
     { title: "Hey You", artist: "Pink Floyd", score: 0.803, why: "Because you listened to rock and progressive rock", shared_tags: ["rock","progressive rock"] },
-    { title: "Comfortably Numb", artist: "Pink Floyd", score: 0.800, why: "Because you listened to rock, progressive rock and classic rock", shared_tags: ["rock","progressive rock","classic rock"], spotify_id: "5HNCy40Ni5BZJFw1TKzRsC" },
+    { title: "Comfortably Numb", artist: "Pink Floyd", score: 0.800, why: "Because you listened to rock, progressive rock and classic rock", shared_tags: ["rock","progressive rock","classic rock"] },
     { title: "Another Brick in the Wall, Pt. 2", artist: "Pink Floyd", score: 0.792, why: "Because you listened to rock and classic rock", shared_tags: ["rock","classic rock"] },
-    { title: "Epitaph", artist: "King Crimson", score: 0.781, why: "Because you listened to progressive rock, classic rock and rock", shared_tags: ["progressive rock","classic rock","rock"], spotify_id: "0iBWSjXBBn6P0DBP2rfsCa" },
-    { title: "Shine On You Crazy Diamond", artist: "Pink Floyd", score: 0.771, why: "Because you listened to rock, progressive rock and psychedelic", shared_tags: ["rock","progressive rock","psychedelic"], spotify_id: "7flcUZuolIeS20WKkuUGac" },
+    { title: "Epitaph", artist: "King Crimson", score: 0.781, why: "Because you listened to progressive rock, classic rock and rock", shared_tags: ["progressive rock","classic rock","rock"] },
+    { title: "Shine On You Crazy Diamond", artist: "Pink Floyd", score: 0.771, why: "Because you listened to rock, progressive rock and psychedelic", shared_tags: ["rock","progressive rock","psychedelic"] },
     { title: "Have a Cigar", artist: "Pink Floyd", score: 0.761, why: "Because you listened to rock, prog and 70s progressive rock", shared_tags: ["rock","prog","70s progressive rock"] },
-    { title: "School", artist: "Supertramp", score: 0.754, why: "Because you listened to classic rock, rock and 70s", shared_tags: ["classic rock","rock","70s"], spotify_id: "3H3rBUBBQtLoUZm4n55i7T" },
+    { title: "School", artist: "Supertramp", score: 0.754, why: "Because you listened to classic rock, rock and 70s", shared_tags: ["classic rock","rock","70s"] },
   ];
   const PF_RERANKED = [
     PF_CF[0], PF_CF[1], PF_CF[2],
@@ -56,8 +56,8 @@
     PF_CF[3], PF_CF[4],
     PF_CF[9], // Supertramp rises
     PF_CF[5],
-    { title: "Going to California", artist: "Led Zeppelin", score: 0.748, why: "Because you listened to classic rock and rock", shared_tags: ["classic rock","rock"], spotify_id: "2blNTNGDBZOUcTcqvWZ9m4" },
-    { title: "A Whiter Shade of Pale", artist: "Procol Harum", score: 0.743, why: "Because you listened to classic rock and progressive rock", shared_tags: ["classic rock","progressive rock"], spotify_id: "1lPZC7cVAbxCnwXom6bwWK" },
+    { title: "Going to California", artist: "Led Zeppelin", score: 0.748, why: "Because you listened to classic rock and rock", shared_tags: ["classic rock","rock"] },
+    { title: "A Whiter Shade of Pale", artist: "Procol Harum", score: 0.743, why: "Because you listened to classic rock and progressive rock", shared_tags: ["classic rock","progressive rock"] },
   ];
 
   function mockRecs(session, rerank) {
@@ -107,17 +107,6 @@
   function spotifySearch(t) {
     return "https://open.spotify.com/search/" + encodeURIComponent(t.artist + " " + t.title);
   }
-  function playerHTML(r) {
-    // In-place embed only when we have a Spotify track ID (mock demo tracks);
-    // otherwise an open-in-Spotify search link — the honest fallback, since
-    // not every LFM-2b track resolves to a Spotify ID.
-    if (r.spotify_id) {
-      return `<button type="button" class="play" data-embed="${r.spotify_id}">▶ Play in place</button>
-              <div class="embed" hidden></div>`;
-    }
-    return `<a class="spotify" href="${spotifySearch(r)}" target="_blank" rel="noopener">▶ Spotify</a>`;
-  }
-
   function mount(opts) {
     opts = opts || {};
     const rank = opts.rank || (i => String(i + 1));
@@ -169,8 +158,9 @@
           <div class="aside">
             <div class="score">${Number(r.score).toFixed(3)}</div>
             <div class="meter"><i style="width:${Math.round(r.score * 100)}%"></i></div>
-            ${playerHTML(r)}
+            <button type="button" class="play" data-artist="${esc(r.artist)}" data-title="${esc(r.title)}">▶ Play in place</button>
           </div>
+          <div class="embed" hidden></div>
         </div>`).join("");
     }
 
@@ -207,10 +197,14 @@
       }
     }
 
+    let searchTimer = null;
     $("q").addEventListener("input", e => {
       const q = e.target.value;
+      clearTimeout(searchTimer);
       if (q.trim().length < 2) { renderHits([]); return; }
-      doSearch(q);
+      // 150ms debounce: a burst of typing collapses to one request. The
+      // searchSeq stale-response guard in doSearch handles any that overlap.
+      searchTimer = setTimeout(() => doSearch(q), 150);
     });
     $("hits").addEventListener("click", e => {
       const li = e.target.closest("li"); if (!li) return;
@@ -224,12 +218,33 @@
       if (i > -1) session.splice(i, 1);
       renderSession();
     });
-    $("recs").addEventListener("click", e => {
+    $("recs").addEventListener("click", async e => {
       const play = e.target.closest(".play"); if (!play) return;
-      const box = play.parentElement.querySelector(".embed");
+      // .embed is a sibling row of .aside (both children of .rec), so the score
+      // and meter stay pinned right when the player opens.
+      const box = play.closest(".rec").querySelector(".embed");
       if (!box.dataset.loaded) {
-        box.innerHTML = `<iframe style="border-radius:10px" src="https://open.spotify.com/embed/track/${play.dataset.embed}?utm_source=nextrack" width="100%" height="80" frameborder="0" allow="autoplay;encrypted-media" loading="lazy"></iframe>`;
+        const artist = play.dataset.artist, title = play.dataset.title;
+        // Loading state: the /spotify lookup can take a second or two (retry on
+        // flaky Spotify), so show a spinner and lock the button meanwhile.
+        play.disabled = true;
+        play.textContent = "⏳ Loading…";
+        box.innerHTML = `<div class="embed-loading">Loading player…</div>`;
+        box.hidden = false;
+        let id = null;
+        if (live) {
+          try {
+            const r = await fetch(`${API_BASE}/spotify?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);
+            if (r.ok) id = (await r.json()).spotify_id;
+          } catch (err) { /* fall through to search link */ }
+        }
+        box.innerHTML = id
+          ? `<iframe style="border-radius:10px" src="https://open.spotify.com/embed/track/${id}?utm_source=nextrack" width="100%" height="80" frameborder="0" allow="autoplay;encrypted-media" loading="lazy"></iframe>`
+          : `<a class="spotify" href="${spotifySearch({ artist, title })}" target="_blank" rel="noopener">▶ Open in Spotify</a>`;
         box.dataset.loaded = "1";
+        play.disabled = false;
+        play.textContent = "▾ Hide player";
+        return; // already shown
       }
       const show = box.hidden;
       box.hidden = !show;

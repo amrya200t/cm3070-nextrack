@@ -37,6 +37,21 @@ uv run explore         # open 01-data-explore.ipynb
 The demo page is served at `/app` (the root redirects there); interactive API
 docs at `/docs`. CI runs the test suite on every push (GitHub Actions).
 
+## Spotify (optional — in-place playback)
+
+The demo's in-place player resolves each track to Spotify via the Search API.
+It needs client credentials in `code/.env.local` (gitignored):
+
+```ini
+SPOTIFY_CLIENT_ID=...
+SPOTIFY_CLIENT_SECRET=...
+```
+
+`uv run api` loads `.env.local` automatically. Without the credentials — or if
+Spotify is unreachable — the player falls back to open-in-Spotify search links;
+nothing breaks. Only `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` are used
+(metadata lookup only — no Spotify data enters the recommendation model).
+
 ## API
 
 `POST /recommend`

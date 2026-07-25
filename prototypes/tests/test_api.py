@@ -60,6 +60,31 @@ def test_search_finds_catalogue_tracks(client):
     assert hits and all("pink floyd" in h["artist"].lower() for h in hits)
 
 
+def test_search_ranks_multiword(client):
+    # Cross-field query (artist + title) — the old substring scan returned [].
+    r = client.get("/search", params={"q": "pink floyd money", "limit": 5})
+    assert r.status_code == 200
+    hits = r.json()
+    assert hits, "multi-word query should return results"
+    assert hits[0]["artist"] == "Pink Floyd" and hits[0]["title"] == "Money"
+
+
+def test_spotify_endpoint_returns_id(client, monkeypatch):
+    import nextrack.api as api_mod
+    monkeypatch.setattr(api_mod, "spotify_track_id", lambda a, t: "XYZ")
+    r = client.get("/spotify", params={"artist": "Pink Floyd", "title": "Money"})
+    assert r.status_code == 200
+    assert r.json() == {"spotify_id": "XYZ"}
+
+
+def test_spotify_endpoint_null_when_unresolved(client, monkeypatch):
+    import nextrack.api as api_mod
+    monkeypatch.setattr(api_mod, "spotify_track_id", lambda a, t: None)
+    r = client.get("/spotify", params={"artist": "Nobody", "title": "Nothing"})
+    assert r.status_code == 200
+    assert r.json() == {"spotify_id": None}
+
+
 def test_health_reports_catalogue(client):
     r = client.get("/health")
     assert r.status_code == 200
