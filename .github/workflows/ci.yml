@@ -1,0 +1,20 @@
+# CI: run the test suite on every push/PR. The API-layer tests skip themselves
+# when trained artifacts are absent (they are gitignored), so the suite stays
+# green on a fresh checkout — by design, see prototypes/tests/test_api.py.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - run: uv sync --frozen
+      - run: uv run pytest -q

@@ -1,0 +1,16 @@
+# One-command reproduction (prelim 3.6 operational threshold: fresh checkout
+# -> working API in <= 5 min):  docker compose up
+services:
+  api:
+    build: .
+    ports:
+      - "${NEXTRACK_PORT:-8000}:8000"
+    environment:
+      NEXTRACK_HOST: 0.0.0.0
+      # NEXTRACK_CORS: https://your-page-host   # only for a split deploy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s

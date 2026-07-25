@@ -1,0 +1,10 @@
+# Keep the build context tiny: only code, lockfile, web page, and artifacts
+# belong in the image.
+.git
+.venv
+.env*
+prototypes/data/
+prototypes/notebooks/
+prototypes/figures/
+**/__pycache__/
+*.pyc

@@ -5,7 +5,15 @@ CM3035 Advanced Web Development, Project Idea 2). The client sends recent track
 IDs with each request — no accounts, no stored history — and gets ranked
 recommendations back with tag-based `why` explanations.
 
-## Setup (uv, Python 3.11)
+## Quickstart (Docker)
+
+```bash
+cd code
+docker compose up        # builds the image (model artifacts baked in) and
+                         # serves API + demo page on http://127.0.0.1:8000
+```
+
+## Setup for development (uv, Python 3.11)
 
 ```bash
 cd code
@@ -16,13 +24,18 @@ uv sync
 ## Run
 
 ```bash
-uv run train      # fit ALS on the LFM-2b slice, save artifacts/
-uv run pytest     # test suite (24 tests; API tests skip if artifacts absent)
-uv run evaluate   # offline evaluation: leave-last-out, Recall/NDCG/MRR@10
-uv run api        # serve the REST API on http://127.0.0.1:8000 (docs at /docs)
-uv run demo       # open 02-demo.ipynb (notebook demo)
-uv run explore    # open 01-data-explore.ipynb
+uv run train           # fit ALS on the LFM-2b slice, save artifacts/
+uv run pytest          # test suite (38 tests; API tests skip if artifacts absent)
+uv run evaluate        # quick evaluation: leave-last-out, Recall/NDCG/MRR@10
+uv run evaluate-full   # full protocol: 70/10/20 split, 5 systems, bootstrap CIs
+uv run api             # serve API + demo page on http://127.0.0.1:8000
+uv run api-dev         # same, with auto-reload on code changes
+uv run demo            # open 02-demo.ipynb (notebook demo)
+uv run explore         # open 01-data-explore.ipynb
 ```
+
+The demo page is served at `/app` (the root redirects there); interactive API
+docs at `/docs`. CI runs the test suite on every push (GitHub Actions).
 
 ## API
 
@@ -44,12 +57,19 @@ Unknown-only seeds return `422` (cold-start is out of scope by design).
 Measured on the dev laptop: p95 latency 2.0 ms over 100 requests (threshold
 from the preliminary report: ≤ 100 ms).
 
-## Evaluation snapshot (leave-last-out, n = 10,068 sessions)
+## Evaluation snapshot (70/10/20 chronological split, n = 9,873 test sessions)
 
 | Model | Recall@10 | NDCG@10 | MRR@10 |
 | --- | --- | --- | --- |
-| Popularity baseline | 0.0016 | 0.0006 | 0.0003 |
-| ALS session-vector | 0.0488 | 0.0275 | 0.0209 |
+| Popularity baseline | 0.0011 | 0.0004 | 0.0002 |
+| Content-only (tags) | 0.0256 | 0.0139 | 0.0103 |
+| Item-kNN | 0.0368 | 0.0206 | 0.0156 |
+| ALS session-vector | 0.0444 | 0.0242 | 0.0180 |
+| ALS + hybrid re-ranker | 0.0426 | 0.0235 | 0.0176 |
+
+Bootstrap 95% CIs, per-popularity-bucket analysis, and the validation-locked
+re-ranker weights are in `prototypes/artifacts/eval_full.json`
+(`uv run evaluate-full` regenerates everything).
 
 ## Layout
 
