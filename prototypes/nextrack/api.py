@@ -10,13 +10,20 @@ Run with `uv run api` (serves on http://127.0.0.1:8000, docs at /docs).
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from nextrack import recommend
 from nextrack.infer import _load_artifacts
+
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
 @asynccontextmanager
@@ -39,6 +46,16 @@ app = FastAPI(
         "tracks in the request are the only personalisation signal."
     ),
     lifespan=lifespan,
+)
+
+# CORS: only needed when the demo page is hosted on a different origin from
+# the API (the default same-origin /app mount below needs none). "*" is fine
+# here — the API is stateless and public by design: no auth, no cookies.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("NEXTRACK_CORS", "*").split(","),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -122,6 +139,16 @@ def health() -> dict:
         "catalogue_tracks": len(maps["track_id_to_index"]),
         "tagged_tracks": len(maps["tags"]),
     }
+
+
+# Serve the demo page at /app (same origin as the API -> engine.js goes live
+# automatically, no CORS involved). Root redirects there for a friendly URL.
+if WEB_DIR.is_dir():
+    app.mount("/app", StaticFiles(directory=WEB_DIR, html=True), name="app")
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        return RedirectResponse(url="/app/")
 
 
 def main() -> None:

@@ -66,3 +66,20 @@ def test_health_reports_catalogue(client):
     body = r.json()
     assert body["status"] == "ok"
     assert body["catalogue_tracks"] > 30_000
+
+
+def test_demo_page_served_at_app(client):
+    r = client.get("/app/")
+    assert r.status_code == 200
+    assert "NextTrack" in r.text
+    # Root gives a friendly redirect to the demo page.
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code in (302, 307)
+    assert r.headers["location"] == "/app/"
+
+
+def test_recommend_rerank_param_changes_ranking(client):
+    on = client.post("/recommend", json={"recent_track_ids": SEEDS, "k": 10, "params": {"rerank": True}}).json()
+    off = client.post("/recommend", json={"recent_track_ids": SEEDS, "k": 10, "params": {"rerank": False}}).json()
+    # The re-ranker must produce at least as many unique artists as pure CF.
+    assert len({r["artist"] for r in on}) >= len({r["artist"] for r in off})
