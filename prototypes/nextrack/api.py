@@ -135,3 +135,23 @@ def main() -> None:
         host=os.getenv("NEXTRACK_HOST", "127.0.0.1"),
         port=int(os.getenv("NEXTRACK_PORT", "8000")),
     )
+
+
+def dev() -> None:
+    """`uv run api-dev`: auto-reload on code changes (nodemon-style).
+
+    watchfiles restarts the server whenever a file under nextrack/ changes.
+    Dev-only: each restart re-runs the lifespan, so the ~2s artifact load
+    happens on every save — fine locally, wrong for serving.
+    """
+    from pathlib import Path
+
+    import uvicorn
+
+    uvicorn.run(
+        "nextrack.api:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True,
+        reload_dirs=[str(Path(__file__).resolve().parent)],
+    )

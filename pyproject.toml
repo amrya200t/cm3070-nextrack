@@ -21,6 +21,7 @@ demo = "nextrack._tasks:demo"
 explore = "nextrack._tasks:explore"
 evaluate = "nextrack.evaluate:main"
 api = "nextrack.api:main"
+api-dev = "nextrack.api:dev"
 
 [tool.pytest.ini_options]
 testpaths = ["prototypes/tests"]
