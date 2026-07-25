@@ -20,6 +20,7 @@ train = "nextrack._tasks:train"
 demo = "nextrack._tasks:demo"
 explore = "nextrack._tasks:explore"
 evaluate = "nextrack.evaluate:main"
+evaluate-full = "nextrack.evaluate_full:main"
 api = "nextrack.api:main"
 api-dev = "nextrack.api:dev"
 
