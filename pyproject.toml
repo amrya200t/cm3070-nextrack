@@ -24,6 +24,7 @@ explore = "nextrack._tasks:explore"
 evaluate = "nextrack.evaluate:main"
 evaluate-full = "nextrack.evaluate_full:main"
 enrich = "nextrack.enrich:main"
+evaluate-enrich = "nextrack.evaluate_enrich:main"
 api = "nextrack.api:main"
 api-dev = "nextrack.api:dev"
 
