@@ -25,9 +25,10 @@ uv sync
 
 ```bash
 uv run train           # fit ALS on the LFM-2b slice, save artifacts/
-uv run pytest          # test suite (38 tests; API tests skip if artifacts absent)
+uv run pytest          # test suite (65 tests; API tests skip if artifacts absent)
 uv run evaluate        # quick evaluation: leave-last-out, Recall/NDCG/MRR@10
 uv run evaluate-full   # full protocol: 70/10/20 split, 5 systems, bootstrap CIs
+uv run enrich          # backfill genre tags for untagged tracks (Wikidata, resumable)
 uv run api             # serve API + demo page on http://127.0.0.1:8000
 uv run api-dev         # same, with auto-reload on code changes
 uv run demo            # open 02-demo.ipynb (notebook demo)

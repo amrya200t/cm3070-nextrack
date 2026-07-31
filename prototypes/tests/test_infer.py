@@ -7,7 +7,7 @@ exercised by the notebook demo and the evaluation harness instead.
 import numpy as np
 import pytest
 
-from nextrack.infer import build_session_vector, cosine_nearest
+from nextrack.infer import _apply_enrichment_overlay, build_session_vector, cosine_nearest
 
 
 def _factors():

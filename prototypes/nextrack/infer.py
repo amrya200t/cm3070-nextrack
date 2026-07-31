@@ -40,7 +40,23 @@ def _load_artifacts() -> tuple[np.ndarray, np.ndarray, dict]:
         _UNIT_FACTORS = _FACTORS / norms[:, None]
         with open(IDMAP_PATH, "rb") as fh:
             _MAPS = pickle.load(fh)
+        # Fold in the Wikidata genre overlay (Phase F1) so untagged tracks get a
+        # `why` explanation. Last.fm tags always win where present; the overlay
+        # only fills tracks that have none. No-op if the harvest hasn't run.
+        _MAPS["tags"] = _apply_enrichment_overlay(_MAPS["tags"])
     return _FACTORS, _UNIT_FACTORS, _MAPS
+
+
+def _apply_enrichment_overlay(tags: dict) -> dict:
+    """Merge the Wikidata genre overlay into tags if the overlay file exists."""
+    import json
+
+    from nextrack.enrich import OVERLAY_PATH, merged_tags
+
+    if not OVERLAY_PATH.is_file():
+        return tags
+    overlay = json.loads(OVERLAY_PATH.read_text(encoding="utf-8"))
+    return merged_tags(tags, overlay)
 
 
 def build_session_vector(
