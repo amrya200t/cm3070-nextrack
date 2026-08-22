@@ -36,36 +36,59 @@ MIN_EVENTS_PER_USER = 10
 TARGET_EVENTS = 1_000_000
 
 
+CHUNK_LINES = 2_000_000  # raw lines aggregated per block in the chunked loader
+
+
 def load_events(
     path: Path | str = EVENTS_PATH,
-    max_events: int = TARGET_EVENTS,
+    max_events: int | None = TARGET_EVENTS,
 ) -> pd.DataFrame:
     """Stream the bz2 listening-events file and return a filtered playcount frame.
 
-    Reads up to `max_events` raw events (the file is ~300MB compressed; we cap to
-    keep the prototype in memory and fast), then applies the spec filters:
+    Reads up to `max_events` raw events (None = the whole file), aggregating in
+    CHUNK_LINES blocks so memory stays bounded at full scale (~50M events): each
+    block is reduced to per-(user, track) playcounts before the next is read,
+    and the partial aggregates are merged at the end. Because pandas groupby
+    with sort=False preserves first-appearance order, the merged result is
+    row-for-row identical to the original single-pass implementation — the 1M
+    prototype numbers stay exactly reproducible. Spec filters then apply:
       - drop tracks with < MIN_PLAYS_PER_TRACK plays
       - drop users with < MIN_EVENTS_PER_USER events
 
     Returns a DataFrame with columns [user_id, track_id, playcount].
     """
+    partials: list[pd.DataFrame] = []
     rows: list[tuple[str, str]] = []
+
+    def flush() -> None:
+        if not rows:
+            return
+        block = pd.DataFrame(rows, columns=["user_id", "track_id"])
+        partials.append(
+            block.groupby(["user_id", "track_id"], sort=False)
+            .size()
+            .reset_index(name="playcount")
+        )
+        rows.clear()
+
     with bz2.open(path, "rt", encoding="utf-8") as fh:
         fh.readline()  # header: user_id, track_id, album_id, timestamp
         for i, line in enumerate(fh):
-            if i >= max_events:
+            if max_events is not None and i >= max_events:
                 break
             parts = line.split("\t")
             if len(parts) >= 2:
                 rows.append((parts[0], parts[1]))
+            if len(rows) >= CHUNK_LINES:
+                flush()
+    flush()
 
-    events = pd.DataFrame(rows, columns=["user_id", "track_id"])
-
-    # Aggregate raw events -> per (user, track) playcount.
+    # Merge partial aggregates; groupby(sort=False) keeps first-appearance order.
     plays = (
-        events.groupby(["user_id", "track_id"], sort=False)
-        .size()
-        .reset_index(name="playcount")
+        pd.concat(partials, ignore_index=True)
+        .groupby(["user_id", "track_id"], sort=False)["playcount"]
+        .sum()
+        .reset_index()
     )
 
     # Filter: tracks with enough total plays, then users with enough events.

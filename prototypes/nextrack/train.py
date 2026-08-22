@@ -27,8 +27,14 @@ FACTORS = 64
 ITERATIONS = 15
 REGULARIZATION = 0.01
 ALPHA = 40
+TAG_CAP = 50  # tags stored per track in the serving artifact (count-descending)
 
-_ARTIFACTS = Path(__file__).resolve().parent.parent / "artifacts"
+# NEXTRACK_ARTIFACTS overrides the artifacts directory (e.g. to serve the
+# full-scale model from artifacts_full without touching the pinned prototype).
+_ARTIFACTS = Path(
+    os.environ.get("NEXTRACK_ARTIFACTS")
+    or Path(__file__).resolve().parent.parent / "artifacts"
+)
 FACTORS_PATH = _ARTIFACTS / "track_factors.npy"
 IDMAP_PATH = _ARTIFACTS / "id_map.pkl"
 
@@ -58,6 +64,7 @@ def save_artifacts(
     track_names: dict,
     tags: dict,
     artifacts_dir: Path | str = _ARTIFACTS,
+    track_plays: dict | None = None,
 ) -> None:
     """Persist track factors + everything inference needs.
 
@@ -69,19 +76,26 @@ def save_artifacts(
     np.save(artifacts_dir / "track_factors.npy", model.item_factors)
 
     # Subset names + tags to only the tracks actually in the model. The full
-    # catalogue is ~4M names / ~1M tag lists; the model holds ~36k tracks, so
-    # storing everything bloats id_map.pkl to ~400MB for no benefit.
+    # catalogue is ~4M names / ~1M tag lists; storing everything bloats
+    # id_map.pkl for no benefit. Tag lists are also capped at TAG_CAP entries:
+    # they arrive count-descending, explanations use only the top overlaps, and
+    # uncapped lists (some tracks carry hundreds of tags) dominate re-ranking
+    # latency at full catalogue scale.
     in_model = set(index_to_track_id.values())
     names_subset = {tid: track_names[tid] for tid in in_model if tid in track_names}
-    tags_subset = {tid: tags[tid] for tid in in_model if tid in tags}
+    tags_subset = {tid: tags[tid][:TAG_CAP] for tid in in_model if tid in tags}
 
+    payload = {
+        "index_to_track_id": index_to_track_id,
+        "track_id_to_index": track_id_to_index,
+        "track_names": names_subset,
+        "tags": tags_subset,
+    }
+    if track_plays is not None:
+        # Total playcount per in-model track: powers popularity tie-breaking in
+        # search (originals rank above obscure covers of the same title).
+        payload["track_plays"] = {
+            tid: int(track_plays[tid]) for tid in in_model if tid in track_plays
+        }
     with open(artifacts_dir / "id_map.pkl", "wb") as fh:
-        pickle.dump(
-            {
-                "index_to_track_id": index_to_track_id,
-                "track_id_to_index": track_id_to_index,
-                "track_names": names_subset,
-                "tags": tags_subset,
-            },
-            fh,
-        )
+        pickle.dump(payload, fh)

@@ -31,3 +31,28 @@
     setTheme(next);
   });
 })();
+
+// --- header stats -----------------------------------------------------------
+// Keep the stat chips honest: read catalogue size and tag coverage from the
+// live /health endpoint so the page always describes the model actually
+// serving it. The hardcoded defaults match the built-in mock lists, so mock
+// mode (file:// or API down) stays self-consistent without any request.
+(async () => {
+  const base = window.NEXTTRACK_API ||
+    (location.protocol.startsWith("http") ? location.origin : null);
+  if (!base) return;
+  try {
+    const r = await fetch(`${base}/health`);
+    if (!r.ok) return;
+    const h = await r.json();
+    if (h.catalogue_tracks) {
+      const el = document.getElementById("stat-tracks");
+      if (el) el.textContent = h.catalogue_tracks.toLocaleString("en-US");
+    }
+    if (h.catalogue_tracks && h.tagged_tracks) {
+      const el = document.getElementById("stat-tagged");
+      if (el) el.textContent =
+        ((h.tagged_tracks / h.catalogue_tracks) * 100).toFixed(1) + "%";
+    }
+  } catch (e) {} // mock mode: defaults stand
+})();

@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from nextrack import recommend
 from nextrack.infer import _load_artifacts
-from nextrack.search import rank_tracks
+from nextrack.search import get_index, rank_tracks
 from nextrack.spotify import get_track_id as spotify_track_id
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -35,6 +35,9 @@ async def lifespan(app: FastAPI):
     # module cache. A cold first request would otherwise pay the load cost.
     _, _, maps = _load_artifacts()
     app.state.maps = maps
+    # Build the search index at startup too: normalising the full catalogue is
+    # a seconds-scale one-off that must not land on the first keystroke.
+    get_index(maps["track_names"], maps.get("track_plays"))
     yield
 
 
@@ -122,7 +125,10 @@ def search(
     limit: int = Query(20, ge=1, le=100),
 ) -> list[dict]:
     """Ranked name -> track_id lookup so clients can build sessions from real titles."""
-    return rank_tracks(q, app.state.maps["track_names"], limit)
+    return rank_tracks(
+        q, app.state.maps["track_names"], limit,
+        plays=app.state.maps.get("track_plays"),
+    )
 
 
 @app.get("/spotify")

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import functools
 import os
+import re
 import time
 
 import httpx
@@ -82,6 +83,25 @@ def _get_token() -> str | None:
     return _token
 
 
+_EDITION_SUFFIX = re.compile(
+    r"""
+    (\s*[-–]\s*[^-–]*\b(remaster(ed)?|mono|stereo|live|deluxe|edit|version|mix)\b[^-–]*$)
+    | (\s*[(\[][^)\]]*\b(remaster(ed)?|mono|stereo|deluxe|version|mix)\b[^)\]]*[)\]]\s*$)
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _clean_title(title: str) -> str:
+    """Strip edition suffixes ("- 2011 Remastered Version", "(Remastered)").
+
+    LFM-2b titles at full catalogue scale frequently carry remaster/edition
+    tags that Spotify's search matches poorly; the base title resolves fine.
+    """
+    cleaned = _EDITION_SUFFIX.sub("", title).strip()
+    return cleaned or title
+
+
 @functools.lru_cache(maxsize=2048)
 def get_track_id(artist: str, title: str) -> str | None:
     """Resolve (artist, title) -> Spotify track ID, or None if not found."""
@@ -92,7 +112,7 @@ def get_track_id(artist: str, title: str) -> str | None:
         resp = _request(
             "GET",
             _SEARCH_URL,
-            params={"q": f"{artist} {title}", "type": "track", "limit": 1},
+            params={"q": f"{artist} {_clean_title(title)}", "type": "track", "limit": 1},
             headers={"Authorization": f"Bearer {token}"},
         )
         resp.raise_for_status()

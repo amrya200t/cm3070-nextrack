@@ -37,8 +37,10 @@ def train() -> None:
     model = trainmod.train_als(matrix)
 
     print("Saving artifacts...")
+    track_plays = plays.groupby("track_id")["playcount"].sum().to_dict()
     trainmod.save_artifacts(
-        model, index_to_track_id, track_id_to_index, track_names, tags
+        model, index_to_track_id, track_id_to_index, track_names, tags,
+        track_plays=track_plays,
     )
     print("Done. Artifacts written to prototypes/artifacts/")
 

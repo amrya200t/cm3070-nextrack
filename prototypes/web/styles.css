@@ -185,7 +185,11 @@ footer a { color: var(--ink-soft); }
 /* ============================================================ RESPONSIVE */
 @media (max-width: 560px) {
   .rec { grid-template-columns: 2.2rem 1fr; }
-  .rec .aside { grid-column: 2; flex-direction: row; align-items: center; margin-top: .6rem; }
+  /* Full-width wrapping action row: on narrow phones the score/meter/button
+     must be allowed to wrap and the meter to shrink, or the card's minimum
+     width exceeds the viewport and the whole layout clips. */
+  .rec .aside { grid-column: 1 / -1; flex-direction: row; align-items: center; margin-top: .6rem; flex-wrap: wrap; }
+  .rec .meter { flex: 1 1 60px; max-width: 120px; }
 }
 
 /* ====================================================== REDUCED MOTION */
@@ -194,3 +198,9 @@ footer a { color: var(--ink-soft); }
   html { scroll-behavior: auto; }
   .btn:hover:not(:disabled), .rec:hover, :root[data-theme="light"] .rec:hover { transform: none; }
 }
+
+/* Search loading state (full-catalogue searches take a visible beat). */
+.hits .searching { color: var(--ink-faint); font-family: var(--mono); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; cursor: default; animation: searchpulse 1.1s ease-in-out infinite; }
+@keyframes searchpulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .hits .searching { animation: none; } }
+.hits.stale li { opacity: .5; transition: opacity .15s ease; }

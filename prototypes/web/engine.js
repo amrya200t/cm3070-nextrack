@@ -127,10 +127,14 @@
       setBanner();
     }
 
-    const session = CATALOGUE.slice(0, 5); // pre-seeded so the design shows on load
+    // Live mode starts with an EMPTY session: reviewers must build their own
+    // taste, not inherit the sample one. Mock mode (file://, API down) keeps
+    // the pre-seeded tracks so the design still demonstrates itself.
+    const session = live ? [] : CATALOGUE.slice(0, 5);
 
     function renderHits(list) {
       const el = $("hits");
+      el.classList.remove("stale");
       el.innerHTML = list.map(t =>
         `<li data-id="${t.track_id}" data-artist="${esc(t.artist)}" data-title="${esc(t.title)}"><span class="h-title">${esc(t.title)}</span><span class="h-artist">${esc(t.artist)}</span></li>`
       ).join("");
@@ -165,10 +169,24 @@
     }
 
     let searchSeq = 0;
+    function renderSearching() {
+      // Loading state while the live API searches the full catalogue. If
+      // previous results are on screen, keep them (dimmed) so the list never
+      // flickers while typing and clicks keep landing; only show the
+      // "Searching…" row when there is nothing useful to keep.
+      const el = $("hits");
+      if (el.querySelector("li[data-id]")) {
+        el.classList.add("stale");
+      } else {
+        el.innerHTML = `<li class="searching" aria-live="polite">Searching…</li>`;
+        el.classList.add("open");
+      }
+    }
     async function doSearch(q) {
       const seq = ++searchSeq;
       let list = [];
       if (live) {
+        renderSearching();
         try { list = await apiSearch(q, session); }
         catch (e) { fallback(e); list = mockSearch(q, session); }
       } else {
@@ -207,7 +225,7 @@
       searchTimer = setTimeout(() => doSearch(q), 150);
     });
     $("hits").addEventListener("click", e => {
-      const li = e.target.closest("li"); if (!li) return;
+      const li = e.target.closest("li"); if (!li || !li.dataset.id) return;
       const t = { track_id: li.dataset.id, artist: li.dataset.artist, title: li.dataset.title };
       if (!session.some(s => s.track_id === t.track_id)) session.push(t);
       $("q").value = ""; renderHits([]); renderSession();
@@ -260,7 +278,9 @@
 
     setBanner();
     renderSession();
-    run(); // show results immediately with the seeded session
+    // Mock mode shows results immediately with the seeded session; live mode
+    // starts empty, so there is nothing to recommend until the user builds one.
+    if (session.length) run();
   }
 
   global.NextTrackUI = { mount };

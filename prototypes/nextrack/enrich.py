@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -35,7 +36,12 @@ from pathlib import Path
 _DATA = Path(__file__).resolve().parent.parent / "data" / "enrichment"
 CACHE_PATH = _DATA / "wikidata_artists.jsonl"
 GENRE_LABELS_PATH = _DATA / "wikidata_genre_labels.json"
-OVERLAY_PATH = Path(__file__).resolve().parent.parent / "artifacts" / "enrichment_tags.json"
+# Follows the same override as train._ARTIFACTS so the overlay ships alongside
+# whichever artifact set is being served.
+OVERLAY_PATH = Path(
+    os.environ.get("NEXTRACK_ARTIFACTS")
+    or Path(__file__).resolve().parent.parent / "artifacts"
+) / "enrichment_tags.json"
 
 API = "https://www.wikidata.org/w/api.php"
 USER_AGENT = "NextTrack-CM3070-student-project/0.1 (https://github.com/amrya200t/cm3070-nextrack)"
