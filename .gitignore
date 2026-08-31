@@ -17,3 +17,4 @@ __pycache__/
 # Keep empty dirs in tree
 !prototypes/data/.gitkeep
 !prototypes/artifacts/.gitkeep
+prototypes/artifacts_full/

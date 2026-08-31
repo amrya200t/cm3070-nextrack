@@ -5,12 +5,23 @@ CM3035 Advanced Web Development, Project Idea 2). The client sends recent track
 IDs with each request — no accounts, no stored history — and gets ranked
 recommendations back with tag-based `why` explanations.
 
+**Live demo:** https://nexttrack.amrezzat.com (full-scale model: 948,740 tracks
+trained on 30.4M LFM-2b listening events).
+
 ## Quickstart (Docker)
 
 ```bash
 cd code
 docker compose up        # builds the image (model artifacts baked in) and
                          # serves API + demo page on http://127.0.0.1:8000
+```
+
+The image bakes whichever artifact set `ARTIFACTS_DIR` points at: the default
+1M prototype artifacts (~25 MB), or the full-scale model after `uv run python
+-m nextrack.full_scale train`:
+
+```bash
+docker build --build-arg ARTIFACTS_DIR=prototypes/artifacts_full -t nexttrack:v2 .
 ```
 
 ## Setup for development (uv, Python 3.11)
@@ -24,8 +35,8 @@ uv sync
 ## Run
 
 ```bash
-uv run train           # fit ALS on the LFM-2b slice, save artifacts/
-uv run pytest          # test suite (65 tests; API tests skip if artifacts absent)
+uv run train           # fit ALS on the 1M LFM-2b slice, save artifacts/
+uv run pytest          # test suite (67 tests; API tests skip if artifacts absent)
 uv run evaluate        # quick evaluation: leave-last-out, Recall/NDCG/MRR@10
 uv run evaluate-full   # full protocol: 70/10/20 split, 5 systems, bootstrap CIs
 uv run enrich          # backfill genre tags for untagged tracks (Wikidata, resumable)
@@ -33,6 +44,18 @@ uv run api             # serve API + demo page on http://127.0.0.1:8000
 uv run api-dev         # same, with auto-reload on code changes
 uv run demo            # open 02-demo.ipynb (notebook demo)
 uv run explore         # open 01-data-explore.ipynb
+
+# full-scale (30.4M events) pipeline — writes to artifacts_full/, never
+# touching the pinned prototype artifacts:
+uv run --no-sync python -m nextrack.scale_experiment    # 1M/5M/20M/full sweep
+uv run --no-sync python -m nextrack.full_scale train    # final model + overlay
+uv run --no-sync python -m nextrack.full_scale eval     # full protocol at 30.4M
+```
+
+Serve the full-scale model locally with `NEXTRACK_ARTIFACTS`:
+
+```bash
+NEXTRACK_ARTIFACTS=$PWD/prototypes/artifacts_full uv run api
 ```
 
 The demo page is served at `/app` (the root redirects there); interactive API
@@ -70,27 +93,40 @@ Unknown-only seeds return `422` (cold-start is out of scope by design).
 `GET /search?q=pink+floyd` — name → track_id lookup for building sessions.
 `GET /health` — liveness + catalogue stats.
 
-Measured on the dev laptop: p95 latency 2.0 ms over 100 requests (threshold
-from the preliminary report: ≤ 100 ms).
+Measured p95 latency: 2.0 ms at the 1M scale; at full scale (948,740 tracks)
+pure CF ~46 ms and the re-ranked default ~100 ms on the dev laptop (threshold
+from the preliminary report: ≤ 100 ms). Search runs on a startup-built index
+(normalise-once + C-level substring prune + inverted word index for the typo
+fallback): 36–470 ms per query at full catalogue scale, with edition-variant
+dedup and playcount-aware ranking (originals above covers).
 
-## Evaluation snapshot (70/10/20 chronological split, n = 9,873 test sessions)
+## Evaluation snapshot (70/10/20 chronological split)
+
+Full-scale model (30.4M events, n = 14,851 test sessions):
 
 | Model | Recall@10 | NDCG@10 | MRR@10 |
 | --- | --- | --- | --- |
-| Popularity baseline | 0.0011 | 0.0004 | 0.0002 |
-| Content-only (tags) | 0.0256 | 0.0139 | 0.0103 |
-| Item-kNN | 0.0368 | 0.0206 | 0.0156 |
-| ALS session-vector | 0.0444 | 0.0242 | 0.0180 |
-| ALS + hybrid re-ranker | 0.0426 | 0.0235 | 0.0176 |
+| Popularity baseline | 0.0022 | 0.0009 | 0.0005 |
+| Content-only (tags) | 0.0302 | 0.0160 | 0.0117 |
+| Item-kNN | 0.0813 | 0.0483 | 0.0380 |
+| ALS session-vector | 0.0958 | 0.0543 | 0.0415 |
+| ALS + hybrid re-ranker | 0.0895 | 0.0520 | 0.0403 |
 
-Bootstrap 95% CIs, per-popularity-bucket analysis, and the validation-locked
-re-ranker weights are in `prototypes/artifacts/eval_full.json`
-(`uv run evaluate-full` regenerates everything).
+1M prototype slice (n = 9,873): ALS 0.0444 → the scaling sweep
+(`prototypes/figures/scaling.png`) shows recall tracking catalogue coverage
+almost proportionally and saturating at ~20M events. Bootstrap 95% CIs,
+popularity-bucket analysis, and validation-locked re-ranker weights are in
+`prototypes/artifacts/eval_full.json` (1M) and `eval_full_30m.json` (full).
+
+Tag coverage for `why` explanations uses a four-tier provenance ladder (exact
+Last.fm tags > edition-sibling copy > artist-level Last.fm top-tags > Wikidata
+genres): 77.9% of the full catalogue, 87.2% weighted by plays.
 
 ## Layout
 
 - `prototypes/nextrack/` — flat modules: `data`, `train`, `infer`, `explain`,
-  `baselines`, `evaluate`, `api` (+ `seeds`)
+  `baselines`, `evaluate`, `evaluate_full`, `rerank`, `search`, `enrich`,
+  `scale_experiment`, `full_scale`, `spotify`, `api` (+ `seeds`)
 - `prototypes/tests/` — pytest suite
 - `prototypes/notebooks/` — exploration + demo notebooks
 - `prototypes/figures/` — evaluation figures (report-ready)

@@ -78,3 +78,36 @@ def test_apply_overlay_noop_when_file_absent(tmp_path, monkeypatch):
     monkeypatch.setattr(enrich, "OVERLAY_PATH", tmp_path / "does_not_exist.json")
     tags = {"t4": ["progressive rock"]}
     assert infer._apply_enrichment_overlay(tags) == tags
+
+
+def test_fallback_overlay_sibling_and_artist_tiers():
+    from nextrack.enrich import build_fallback_overlay
+    from nextrack.search import _normalize
+    from nextrack.spotify import _clean_title
+
+    names = {
+        "1": ("Radiohead", "Karma Police"),
+        "2": ("Radiohead", "Karma Police - Remastered"),   # sibling of 1
+        "3": ("Radiohead", "Obscure B-Side"),              # artist fallback
+        "4": ("Unknown Artist", "Mystery Song"),           # no source at all
+    }
+    tags = {"1": ["alternative", "rock", "britpop"]}
+    overlay = build_fallback_overlay(names, tags, _clean_title, _normalize)
+    assert overlay["2"] == ["alternative", "rock", "britpop"]  # sibling copy
+    assert overlay["3"] == ["alternative", "rock", "britpop"]  # artist top tags
+    assert "4" not in overlay
+    assert "1" not in overlay  # already tagged: never overwritten
+
+
+def test_fallback_overlay_artist_top_n_by_frequency():
+    from nextrack.enrich import build_fallback_overlay
+    from nextrack.search import _normalize
+    from nextrack.spotify import _clean_title
+
+    names = {
+        "a": ("X", "One"), "b": ("X", "Two"), "c": ("X", "New Untagged"),
+    }
+    tags = {"a": ["rock", "indie"], "b": ["rock", "electronic"]}
+    overlay = build_fallback_overlay(names, tags, _clean_title, _normalize, top_n=2)
+    assert overlay["c"][0] == "rock"          # most frequent first
+    assert len(overlay["c"]) == 2             # capped at top_n

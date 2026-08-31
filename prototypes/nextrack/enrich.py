@@ -55,7 +55,9 @@ def _get(params: dict) -> dict:
     req = urllib.request.Request(
         url, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"}
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    # 10s not 30: on a flaky route, hung requests dominate throughput — failing
+    # fast and letting the resumable cache retry later is strictly better.
+    with urllib.request.urlopen(req, timeout=10) as resp:
         raw = resp.read()
         if resp.headers.get("Content-Encoding") == "gzip":
             raw = gzip.decompress(raw)
@@ -183,6 +185,56 @@ def build_overlay(
         genre_names = [g for g in genre_names if g]
         if genre_names:
             overlay[tid] = genre_names
+    return overlay
+
+
+def build_fallback_overlay(
+    track_names: dict[str, tuple[str, str]],
+    tags: dict[str, list[str]],
+    clean_title,
+    normalize,
+    top_n: int = 10,
+) -> dict[str, list[str]]:
+    """Two internal fallback tiers for untagged tracks, from Last.fm data alone.
+
+    Tier 1 (edition siblings): an untagged "Karma Police - Remastered" inherits
+    the tags of the same artist's tagged "Karma Police" — the tag file is keyed
+    by exact name, so edition suffixes break the join for no musical reason.
+
+    Tier 2 (artist fallback): a track whose artist has other tagged tracks gets
+    the artist's most common tags (top_n by frequency across their catalogue) —
+    the same artist-level-is-better-than-nothing argument as the Wikidata
+    overlay, but sourced from richer local data and requiring no network.
+
+    Pure function (unit-tested); returns {track_id: [tag, ...]} for untagged
+    tracks only. Callers merge with merged_tags (Last.fm exact tags still win).
+    """
+    sibling_key: dict[tuple[str, str], str] = {}
+    artist_tag_counts: dict[str, dict[str, int]] = {}
+    for tid, (artist, title) in track_names.items():
+        if not tags.get(tid):
+            continue
+        na = normalize(artist)
+        sibling_key.setdefault((na, normalize(clean_title(title))), tid)
+        counts = artist_tag_counts.setdefault(na, {})
+        for t in tags[tid]:
+            counts[t] = counts.get(t, 0) + 1
+
+    artist_top: dict[str, list[str]] = {
+        na: [t for t, _c in sorted(counts.items(), key=lambda kv: -kv[1])[:top_n]]
+        for na, counts in artist_tag_counts.items()
+    }
+
+    overlay: dict[str, list[str]] = {}
+    for tid, (artist, title) in track_names.items():
+        if tags.get(tid):
+            continue
+        na = normalize(artist)
+        sib = sibling_key.get((na, normalize(clean_title(title))))
+        if sib is not None:
+            overlay[tid] = list(tags[sib])
+        elif na in artist_top:
+            overlay[tid] = artist_top[na]
     return overlay
 
 

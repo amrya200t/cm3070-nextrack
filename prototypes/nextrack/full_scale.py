@@ -86,7 +86,17 @@ def train_full() -> None:
         if enrich.GENRE_LABELS_PATH.exists()
         else {}
     )
-    overlay = enrich.build_overlay(names_subset, tags_subset, cache, labels)
+    wikidata_overlay = enrich.build_overlay(names_subset, tags_subset, cache, labels)
+    # Internal fallback tiers first (edition siblings, then artist-level tags
+    # from Last.fm's own data); Wikidata genres fill only what remains.
+    from nextrack.search import _normalize
+    from nextrack.spotify import _clean_title
+
+    overlay = enrich.build_fallback_overlay(
+        names_subset, tags_subset, _clean_title, _normalize
+    )
+    for tid, genres in wikidata_overlay.items():
+        overlay.setdefault(tid, genres)
     (ARTIFACTS_FULL / "enrichment_tags.json").write_text(
         json.dumps(overlay, ensure_ascii=False), encoding="utf-8"
     )
@@ -175,11 +185,68 @@ def eval_full_scale() -> None:
     print(f"\nSaved {EVAL_RESULTS_PATH}  ({results['runtime_seconds']} s)", flush=True)
 
 
+def harvest_remaining() -> None:
+    """Overnight Wikidata harvest for artists still untagged at full scale.
+
+    Resumable: every artist result (hit or miss) appends to the JSONL cache,
+    so stopping and rerunning continues where it left off. Expected ~6-9 h for
+    ~73k artists at the polite throttle. Afterwards run
+    `python -m nextrack.full_scale overlay` to rebuild the tag overlay.
+    """
+    with open(ARTIFACTS_FULL / "id_map.pkl", "rb") as fh:
+        import pickle
+
+        maps = pickle.load(fh)
+    names, tags = maps["track_names"], maps["tags"]
+    overlay = json.loads(
+        (ARTIFACTS_FULL / "enrichment_tags.json").read_text(encoding="utf-8")
+    )
+    untagged_artists = sorted({
+        names[t][0] for t in names if not tags.get(t) and not overlay.get(t)
+    })
+    print(f"{len(untagged_artists):,} artists to resolve (resumable)", flush=True)
+    cache = enrich.harvest(untagged_artists)
+    qids = {q for r in cache.values() for q in r["genre_qids"]}
+    enrich.genre_labels(qids)
+    print("harvest complete; run `python -m nextrack.full_scale overlay` next", flush=True)
+
+
+def rebuild_overlay() -> None:
+    """Rebuild the four-tier overlay after a harvest (no training, no network)."""
+    import pickle
+
+    from nextrack.search import _normalize
+    from nextrack.spotify import _clean_title
+
+    with open(ARTIFACTS_FULL / "id_map.pkl", "rb") as fh:
+        maps = pickle.load(fh)
+    names, tags = maps["track_names"], maps["tags"]
+    cache = enrich.load_cache()
+    labels = json.loads(enrich.GENRE_LABELS_PATH.read_text(encoding="utf-8"))
+    wikidata = enrich.build_overlay(names, tags, cache, labels)
+    overlay = enrich.build_fallback_overlay(names, tags, _clean_title, _normalize)
+    for tid, genres in wikidata.items():
+        overlay.setdefault(tid, genres)
+    (ARTIFACTS_FULL / "enrichment_tags.json").write_text(
+        json.dumps(overlay, ensure_ascii=False), encoding="utf-8"
+    )
+    n = len(names)
+    tagged = sum(1 for t in names if tags.get(t) or overlay.get(t))
+    plays = maps.get("track_plays", {})
+    tp = sum(plays.get(t, 0) for t in names)
+    twp = sum(plays.get(t, 0) for t in names if tags.get(t) or overlay.get(t))
+    print(f"catalogue coverage: {tagged/n:.1%} · play-weighted: {twp/tp:.1%}", flush=True)
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "train"
     if mode == "train":
         train_full()
     elif mode == "eval":
         eval_full_scale()
+    elif mode == "harvest":
+        harvest_remaining()
+    elif mode == "overlay":
+        rebuild_overlay()
     else:
-        raise SystemExit(f"unknown mode {mode!r}: use 'train' or 'eval'")
+        raise SystemExit(f"unknown mode {mode!r}: use 'train', 'eval', 'harvest' or 'overlay'")
