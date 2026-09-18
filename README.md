@@ -93,9 +93,10 @@ Unknown-only seeds return `422` (cold-start is out of scope by design).
 `GET /search?q=pink+floyd` — name → track_id lookup for building sessions.
 `GET /health` — liveness + catalogue stats.
 
-Measured p95 latency: 2.0 ms at the 1M scale; at full scale (948,740 tracks)
-pure CF ~46 ms and the re-ranked default ~100 ms on the dev laptop (threshold
-from the preliminary report: ≤ 100 ms). Search runs on a startup-built index
+Measured p95 latency: 2.0 ms at the 1M scale; at full scale (948,740 tracks),
+measured on the deployed 4 GB Hetzner instance, pure CF is 79 ms (inside the
+≤ 100 ms threshold from the preliminary report) and the re-ranked default is
+232 ms (over budget, accepted in exchange for 2.2x recall — see the report). Search runs on a startup-built index
 (normalise-once + C-level substring prune + inverted word index for the typo
 fallback): 36–470 ms per query at full catalogue scale, with edition-variant
 dedup and playcount-aware ranking (originals above covers).
@@ -120,7 +121,7 @@ popularity-bucket analysis, and validation-locked re-ranker weights are in
 
 Tag coverage for `why` explanations uses a four-tier provenance ladder (exact
 Last.fm tags > edition-sibling copy > artist-level Last.fm top-tags > Wikidata
-genres): 77.9% of the full catalogue, 87.2% weighted by plays.
+genres): 82.2% of the full catalogue, 89.4% weighted by plays.
 
 ## Layout
 
