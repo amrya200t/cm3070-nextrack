@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>NextTrack — stateless music recommendations</title>
+    <title>NextTrack: stateless music recommendations</title>
     <script>
       // Set the theme BEFORE first paint (no dark-flash for light-OS users):
       // saved choice wins, then OS preference, then dark.
@@ -35,8 +35,9 @@
       <header>
         <div class="brand">Next<span class="mark">Track</span></div>
         <p class="tagline">
-          A <em>stateless</em> music recommender. Give it your last few tracks —
-          no account, no history — get what to play next, with the reasoning.
+          A <em>stateless</em> music recommender. Give it your last few tracks
+          (no account, no history) and get what to play next, with the
+          reasoning.
         </p>
         <div class="meta-row">
           <span><b id="stat-tracks">35,861</b> TRACKS</span>
@@ -52,7 +53,7 @@
           <input
             id="q"
             type="text"
-            placeholder="Search — Radiohead, Daft Punk, Dua Lipa…"
+            placeholder="Search: Radiohead, Daft Punk, Dua Lipa…"
             autocomplete="off"
           />
         </div>
@@ -77,9 +78,13 @@
 
       <footer>
         Research demo for CM3070. Recommendations and track names come from the
-        <a href="#">LFM-2b dataset</a> (Schedl et al., 2022); the dataset itself
-        is not redistributed. Spotify links open playback only — no Spotify data
-        enters the model.
+        <a
+          href="https://doi.org/10.1145/3498366.3505791"
+          target="_blank"
+          rel="noopener"
+          >LFM-2b dataset</a
+        > (Schedl et al., 2022); the dataset itself is not redistributed.
+        Spotify links open playback only; no Spotify data enters the model.
         <br />
         <a
           class="feedback"
